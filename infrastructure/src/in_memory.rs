@@ -1,5 +1,5 @@
-use vending_machine::domain::entities::Product;
-use vending_machine::domain::repositories::ProductRepository;
+use vending_machine::domain::entities::{Product, Value};
+use vending_machine::domain::interfaces::ProductRepository;
 
 pub struct InMemoryProductRepository {
     products: Vec<Product>,
@@ -12,7 +12,7 @@ impl InMemoryProductRepository {
 }
 
 impl ProductRepository for InMemoryProductRepository {
-    fn find(&self, column_id: u32) -> Option<Product> {
+    fn find(&self, column_id: Value) -> Option<Product> {
         self.products
             .iter()
             .find(|product| product.column_id == column_id)
