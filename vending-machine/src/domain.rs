@@ -61,32 +61,16 @@ pub mod entities {
             Ok(Self(value))
         }
 
+        pub fn parse_f32(value: f32) -> Result<Self, Box<dyn std::error::Error>> {
+            if value <= 0.0 {
+                return Err(Box::from("Price must be greater than zero"));
+            }
+
+            Ok(Self(value))
+        }
+
         pub fn as_value(&self) -> f32 {
             self.0
-        }
-    }
-
-    impl std::ops::Add for Price {
-        type Output = Self;
-
-        fn add(self, other: Self) -> Self {
-            Self(self.0 + other.0)
-        }
-    }
-
-    impl std::ops::Sub for Price {
-        type Output = Self;
-
-        fn sub(self, other: Self) -> Self {
-            Self(self.0 - other.0)
-        }
-    }
-
-    impl std::ops::Mul<u32> for Price {
-        type Output = Self;
-
-        fn mul(self, other: u32) -> Self {
-            Self(self.0 * other as f32)
         }
     }
 
@@ -112,24 +96,16 @@ pub mod entities {
             Ok(Self(value))
         }
 
+        pub fn parse_i32(value: i32) -> Result<Self, Box<dyn std::error::Error>> {
+            if value <= 0 {
+                return Err(Box::from("Value must be greater than zero"));
+            }
+
+            Ok(Self(value as u32))
+        }
+
         pub fn as_value(&self) -> u32 {
             self.0
-        }
-    }
-
-    impl std::ops::Add for Value {
-        type Output = Self;
-
-        fn add(self, other: Self) -> Self {
-            Self(self.0 + other.0)
-        }
-    }
-
-    impl std::ops::Sub for Value {
-        type Output = Self;
-
-        fn sub(self, other: Self) -> Self {
-            Self(self.0 - other.0)
         }
     }
 

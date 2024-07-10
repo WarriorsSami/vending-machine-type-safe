@@ -86,9 +86,10 @@ impl VendingMachine<Guest> {
         loop {
             match self.payment_terminal.request() {
                 Ok(value) => {
-                    payed_amount = payed_amount + value;
+                    payed_amount = Price::parse_f32(payed_amount.as_value() + value.as_value())?;
                     if payed_amount.as_value() >= amount.as_value() {
-                        self.payment_terminal.refund(payed_amount - amount)?;
+                        let refund = Price::parse_f32(payed_amount.as_value() - amount.as_value())?;
+                        self.payment_terminal.refund(refund)?;
                         return Ok(());
                     } else {
                         self.payment_terminal.prompt(
@@ -115,12 +116,15 @@ impl VendingMachine<Guest> {
             .find(column_id)
             .ok_or("Product not found")?;
 
-        let total_price = product.price.clone() * qty.as_value();
+        let total_price =
+            Price::parse_f32(product.price.clone().as_value() * qty.as_value() as f32)?;
 
         self.pay(total_price)?;
 
+        let new_qty =
+            Value::parse_i32(product.quantity.clone().as_value() as i32 - qty.as_value() as i32)?;
         self.product_repository.save(Product {
-            quantity: product.quantity.clone() - qty,
+            quantity: new_qty,
             ..product.clone()
         })?;
 
@@ -153,8 +157,10 @@ impl VendingMachine<Supplier> {
             .find(column_id)
             .ok_or("Product not found")?;
 
+        let new_qty =
+            Value::parse_i32(product.quantity.as_value() as i32 + amount.as_value() as i32)?;
         self.product_repository.save(Product {
-            quantity: product.quantity + amount,
+            quantity: new_qty,
             ..product
         })
     }
