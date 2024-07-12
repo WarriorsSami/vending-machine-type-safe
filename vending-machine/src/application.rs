@@ -1,8 +1,8 @@
-use crate::application::auth::*;
-use crate::domain::entities::{Name, Password, Price, Product, Value};
+use crate::application::states::*;
+use crate::domain::entities::{Name, Password, Price, Product, Sale, Value};
 use crate::domain::interfaces;
 
-pub mod auth {
+pub mod states {
     use crate::application::VendingMachine;
 
     pub trait Role {}
@@ -19,62 +19,83 @@ pub mod auth {
     impl Authenticated for Admin {}
     impl Authenticated for Supplier {}
 
-    pub enum AuthResult {
-        SuccessAdmin(VendingMachine<Admin>),
-        SuccessSupplier(VendingMachine<Supplier>),
-        Failure(VendingMachine<Guest>),
+    pub enum AuthResult<L: LockStatus> {
+        SuccessAdmin(VendingMachine<Admin, L>),
+        SuccessSupplier(VendingMachine<Supplier, L>),
+        Failure(VendingMachine<Guest, L>),
     }
+
+    pub trait LockStatus {}
+
+    pub struct Locked;
+    pub struct Unlocked;
+
+    impl LockStatus for Locked {}
+    impl LockStatus for Unlocked {}
 }
 
-pub struct VendingMachine<U: Role> {
+pub struct VendingMachine<U: Role, L: LockStatus> {
     product_repository: Box<dyn interfaces::ProductRepository>,
+    sale_repository: Box<dyn interfaces::SaleRepository>,
     payment_terminal: Box<dyn interfaces::PaymentTerminal>,
     _role: std::marker::PhantomData<U>,
+    _lock: std::marker::PhantomData<L>,
 }
 
-impl<U: Role> VendingMachine<U> {
+impl<U: Role, L: LockStatus> VendingMachine<U, L> {
     pub fn look_up(&self) -> &Vec<Product> {
         self.product_repository.find_all()
     }
 }
 
-impl<U: Authenticated> VendingMachine<U> {
-    pub fn logout(self) -> VendingMachine<Guest> {
-        VendingMachine::<Guest> {
+impl<U: Authenticated, L: LockStatus> VendingMachine<U, L> {
+    pub fn logout(self) -> VendingMachine<Guest, L> {
+        VendingMachine::<Guest, L> {
             product_repository: self.product_repository,
+            sale_repository: self.sale_repository,
             payment_terminal: self.payment_terminal,
             _role: std::marker::PhantomData,
+            _lock: std::marker::PhantomData,
         }
     }
 }
 
-impl VendingMachine<Guest> {
-    pub fn new(
-        product_repository: Box<dyn interfaces::ProductRepository>,
-        payment_terminal: Box<dyn interfaces::PaymentTerminal>,
-    ) -> VendingMachine<Guest> {
-        VendingMachine::<Guest> {
-            product_repository,
-            payment_terminal,
-            _role: std::marker::PhantomData,
-        }
-    }
-
-    pub fn login(self, username: &Name, password: &Password) -> AuthResult {
+impl<L: LockStatus> VendingMachine<Guest, L> {
+    pub fn login(self, username: &Name, password: &Password) -> AuthResult<L> {
         match (username.as_ref(), password.as_ref()) {
-            ("admin", "admin_pass") => AuthResult::SuccessAdmin(VendingMachine::<Admin> {
+            ("admin", "admin_pass") => AuthResult::SuccessAdmin(VendingMachine::<Admin, L> {
                 product_repository: self.product_repository,
+                sale_repository: self.sale_repository,
                 payment_terminal: self.payment_terminal,
                 _role: std::marker::PhantomData,
+                _lock: std::marker::PhantomData,
             }),
             ("supplier", "supplier_pass") => {
-                AuthResult::SuccessSupplier(VendingMachine::<Supplier> {
+                AuthResult::SuccessSupplier(VendingMachine::<Supplier, L> {
                     product_repository: self.product_repository,
+                    sale_repository: self.sale_repository,
                     payment_terminal: self.payment_terminal,
                     _role: std::marker::PhantomData,
+                    _lock: std::marker::PhantomData,
                 })
             }
             _ => AuthResult::Failure(self),
+        }
+    }
+}
+
+impl VendingMachine<Guest, Unlocked> {
+    pub fn new(
+        product_repository: Box<dyn interfaces::ProductRepository>,
+        sale_repository: Box<dyn interfaces::SaleRepository>,
+        payment_terminal: Box<dyn interfaces::PaymentTerminal>,
+    ) -> VendingMachine<Guest, Unlocked> {
+        VendingMachine::<Guest, Unlocked> {
+            product_repository,
+            sale_repository,
+            payment_terminal,
+            _role: std::marker::PhantomData,
+            _lock: std::marker::PhantomData,
         }
     }
 
@@ -119,56 +140,59 @@ impl VendingMachine<Guest> {
         let total_price =
             Price::parse_f32(product.price.clone().as_value() * qty.as_value() as f32)?;
 
-        self.pay(total_price)?;
+        self.pay(total_price.clone())?;
 
         let new_qty =
-            Value::parse_i32(product.quantity.clone().as_value() as i32 - qty.as_value() as i32)?;
+            Value::parse_i32(product.quantity.clone().as_value() as i32 - qty.as_value() as i32)
+                .map_err(|_| "Insufficient quantity in stock")?;
+
         self.product_repository.save(Product {
             quantity: new_qty,
             ..product.clone()
+        })?;
+
+        self.sale_repository.save(Sale {
+            product_name: product.name.clone(),
+            price: Price::parse_f32(total_price.as_value())?,
+            date: chrono::Utc::now(),
         })?;
 
         Ok(product)
     }
 }
 
-impl VendingMachine<Admin> {
-    pub fn list_sales_report(&self) {
-        todo!()
-    }
-
-    pub fn list_stock_report(&self) {
-        todo!()
-    }
-
-    pub fn list_volume_report(&self) {
-        todo!()
+impl<L: LockStatus> VendingMachine<Admin, L> {
+    pub fn list_sales_report(&self) -> &Vec<Sale> {
+        self.sale_repository.find_all()
     }
 }
 
-impl VendingMachine<Supplier> {
-    pub fn supply_existing_product(
-        &mut self,
-        column_id: Value,
-        amount: Value,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let product = self
-            .product_repository
-            .find(column_id)
-            .ok_or("Product not found")?;
-
-        let new_qty =
-            Value::parse_i32(product.quantity.as_value() as i32 + amount.as_value() as i32)?;
-        self.product_repository.save(Product {
-            quantity: new_qty,
-            ..product
-        })
+impl VendingMachine<Admin, Unlocked> {
+    pub fn lock(self) -> VendingMachine<Admin, Locked> {
+        VendingMachine::<Admin, Locked> {
+            product_repository: self.product_repository,
+            sale_repository: self.sale_repository,
+            payment_terminal: self.payment_terminal,
+            _role: std::marker::PhantomData,
+            _lock: std::marker::PhantomData,
+        }
     }
+}
 
-    pub fn supply_new_product(
-        &mut self,
-        product: Product,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+impl VendingMachine<Admin, Locked> {
+    pub fn unlock(self) -> VendingMachine<Admin, Unlocked> {
+        VendingMachine::<Admin, Unlocked> {
+            product_repository: self.product_repository,
+            sale_repository: self.sale_repository,
+            payment_terminal: self.payment_terminal,
+            _role: std::marker::PhantomData,
+            _lock: std::marker::PhantomData,
+        }
+    }
+}
+
+impl VendingMachine<Supplier, Unlocked> {
+    pub fn supply_product(&mut self, product: Product) -> Result<(), Box<dyn std::error::Error>> {
         self.product_repository.save(product)
     }
 }

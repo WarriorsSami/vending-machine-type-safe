@@ -1,4 +1,6 @@
 pub mod entities {
+    use chrono::{DateTime, Utc};
+
     #[derive(Clone, Debug)]
     pub struct Name(String);
 
@@ -122,15 +124,27 @@ pub mod entities {
         pub price: Price,
         pub quantity: Value,
     }
+
+    #[derive(Clone, Debug)]
+    pub struct Sale {
+        pub date: DateTime<Utc>,
+        pub product_name: Name,
+        pub price: Price,
+    }
 }
 
 pub mod interfaces {
-    use super::entities::{Price, Product, Value};
+    use super::entities::{Price, Product, Sale, Value};
 
     pub trait ProductRepository {
         fn find(&self, column_id: Value) -> Option<Product>;
         fn save(&mut self, product: Product) -> Result<(), Box<dyn std::error::Error>>;
         fn find_all(&self) -> &Vec<Product>;
+    }
+
+    pub trait SaleRepository {
+        fn save(&mut self, sale: Sale) -> Result<(), Box<dyn std::error::Error>>;
+        fn find_all(&self) -> &Vec<Sale>;
     }
 
     pub trait Terminal {

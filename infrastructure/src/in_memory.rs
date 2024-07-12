@@ -1,14 +1,9 @@
-use vending_machine::domain::entities::{Product, Value};
-use vending_machine::domain::interfaces::ProductRepository;
+use vending_machine::domain::entities::{Product, Sale, Value};
+use vending_machine::domain::interfaces::{ProductRepository, SaleRepository};
 
+#[derive(Default)]
 pub struct InMemoryProductRepository {
     products: Vec<Product>,
-}
-
-impl InMemoryProductRepository {
-    pub fn new() -> Self {
-        Self { products: vec![] }
-    }
 }
 
 impl ProductRepository for InMemoryProductRepository {
@@ -35,5 +30,21 @@ impl ProductRepository for InMemoryProductRepository {
 
     fn find_all(&self) -> &Vec<Product> {
         self.products.as_ref()
+    }
+}
+
+#[derive(Default)]
+pub struct InMemorySaleRepository {
+    sales: Vec<Sale>,
+}
+
+impl SaleRepository for InMemorySaleRepository {
+    fn save(&mut self, sale: Sale) -> Result<(), Box<dyn std::error::Error>> {
+        self.sales.push(sale);
+        Ok(())
+    }
+
+    fn find_all(&self) -> &Vec<Sale> {
+        self.sales.as_ref()
     }
 }
