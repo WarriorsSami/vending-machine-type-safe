@@ -17,6 +17,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut terminal = PromptPerspective::GuestUnlocked(CliTerminal::new(vending_machine));
 
     loop {
-        terminal = terminal.run()?;
+        terminal = terminal.dispatch()?;
     }
 }

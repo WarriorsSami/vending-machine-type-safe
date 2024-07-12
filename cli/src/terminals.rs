@@ -10,6 +10,7 @@ use vending_machine::application::VendingMachine;
 use vending_machine::domain::entities::{Name, Password, Price, Product, Value};
 use vending_machine::domain::interfaces::{PaymentTerminal, Terminal};
 
+#[derive(Clone)]
 pub struct CliPaymentTerminal;
 
 impl Terminal for CliPaymentTerminal {
@@ -67,6 +68,23 @@ impl<U: Role, L: LockStatus> CliTerminal<U, L> {
     }
 }
 
+impl<L: LockStatus> CliTerminal<Guest, L> {
+    fn pre_login(&self) -> Result<(Name, Password), Box<dyn Error>> {
+        self.prompt("Enter your username:")?;
+        let mut username = String::new();
+        std::io::stdin().read_line(&mut username)?;
+
+        self.prompt("Enter your password:")?;
+        let mut password = String::new();
+        std::io::stdin().read_line(&mut password)?;
+
+        let username = Name::parse(username.trim())?;
+        let password = Password::parse(password.trim())?;
+
+        Ok((username, password))
+    }
+}
+
 impl<L: LockStatus> CliTerminal<Admin, L> {
     fn list_sales(&self) -> Result<(), Box<dyn Error>> {
         self.prompt("Sales report:")?;
@@ -79,23 +97,18 @@ impl<L: LockStatus> CliTerminal<Admin, L> {
 }
 
 impl<U: Authenticated> CliTerminal<U, Unlocked> {
-    fn logout(self) -> Result<PromptPerspective, Box<dyn Error>> {
-        Ok(PromptPerspective::GuestUnlocked(CliTerminal::<
-            Guest,
-            Unlocked,
-        >::new(
+    fn logout(self) -> PromptPerspective {
+        PromptPerspective::GuestUnlocked(CliTerminal::<Guest, Unlocked>::new(
             self.vending_machine.logout(),
-        )))
+        ))
     }
 }
 
 impl<U: Authenticated> CliTerminal<U, Locked> {
-    fn logout(self) -> Result<PromptPerspective, Box<dyn Error>> {
-        Ok(PromptPerspective::GuestLocked(
-            CliTerminal::<Guest, Locked> {
-                vending_machine: self.vending_machine.logout(),
-            },
-        ))
+    fn logout(self) -> PromptPerspective {
+        PromptPerspective::GuestLocked(CliTerminal::<Guest, Locked> {
+            vending_machine: self.vending_machine.logout(),
+        })
     }
 }
 
@@ -103,18 +116,32 @@ impl CliTerminal<Guest, Unlocked> {
     pub fn run(mut self) -> Result<PromptPerspective, Box<dyn Error>> {
         loop {
             match self.choose_command() {
-                Ok(GuestUnlockedCommand::Login) => {
-                    return self.login();
-                }
-                Ok(GuestUnlockedCommand::ListProducts) => {
-                    self.list_products()?;
-                }
-                Ok(GuestUnlockedCommand::BuyProduct) => {
-                    self.buy_product()?;
-                }
-                Ok(GuestUnlockedCommand::Exit) => {
-                    self.exit()?;
-                }
+                Ok(GuestUnlockedCommand::Login) => match self.pre_login() {
+                    Ok((username, password)) => {
+                        return Ok(self.login(username, password));
+                    }
+                    Err(e) => {
+                        self.prompt(&format!("Error: {}", e))?;
+                    }
+                },
+                Ok(GuestUnlockedCommand::ListProducts) => match self.list_products() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        self.prompt(&format!("Error: {}", e))?;
+                    }
+                },
+                Ok(GuestUnlockedCommand::BuyProduct) => match self.buy_product() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        self.prompt(&format!("Error: {}", e))?;
+                    }
+                },
+                Ok(GuestUnlockedCommand::Exit) => match self.exit() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        self.prompt(&format!("Error: {}", e))?;
+                    }
+                },
                 Err(e) => {
                     self.prompt(&format!("Error: {}", e))?;
                 }
@@ -136,42 +163,18 @@ impl CliTerminal<Guest, Unlocked> {
         GuestUnlockedCommand::try_from(command.trim())
     }
 
-    fn login(self) -> Result<PromptPerspective, Box<dyn Error>> {
-        self.prompt("Enter your username:")?;
-        let mut username = String::new();
-        std::io::stdin().read_line(&mut username)?;
-
-        self.prompt("Enter your password:")?;
-        let mut password = String::new();
-        std::io::stdin().read_line(&mut password)?;
-
-        let username = Name::parse(username.trim())?;
-        let password = Password::parse(password.trim())?;
-
+    fn login(self, username: Name, password: Password) -> PromptPerspective {
         match self.vending_machine.login(&username, &password) {
             AuthResult::SuccessAdmin(vending_machine) => {
-                Ok(PromptPerspective::AdminUnlocked(CliTerminal::<
-                    Admin,
-                    Unlocked,
-                > {
-                    vending_machine,
-                }))
+                PromptPerspective::AdminUnlocked(CliTerminal::<Admin, Unlocked> { vending_machine })
             }
             AuthResult::SuccessSupplier(vending_machine) => {
-                Ok(PromptPerspective::SupplierUnlocked(CliTerminal::<
-                    Supplier,
-                    Unlocked,
-                > {
+                PromptPerspective::SupplierUnlocked(CliTerminal::<Supplier, Unlocked> {
                     vending_machine,
-                }))
+                })
             }
             AuthResult::Failure(vending_machine) => {
-                Ok(PromptPerspective::GuestUnlocked(CliTerminal::<
-                    Guest,
-                    Unlocked,
-                > {
-                    vending_machine,
-                }))
+                PromptPerspective::GuestUnlocked(CliTerminal::<Guest, Unlocked> { vending_machine })
             }
         }
     }
@@ -201,15 +204,26 @@ impl CliTerminal<Guest, Locked> {
     pub fn run(self) -> Result<PromptPerspective, Box<dyn Error>> {
         loop {
             match self.choose_command() {
-                Ok(GuestLockedCommand::Login) => {
-                    return self.login();
-                }
-                Ok(GuestLockedCommand::ListProducts) => {
-                    self.list_products()?;
-                }
-                Ok(GuestLockedCommand::Exit) => {
-                    self.exit()?;
-                }
+                Ok(GuestLockedCommand::Login) => match self.pre_login() {
+                    Ok((username, password)) => {
+                        return Ok(self.login(username, password));
+                    }
+                    Err(e) => {
+                        self.prompt(&format!("Error: {}", e))?;
+                    }
+                },
+                Ok(GuestLockedCommand::ListProducts) => match self.list_products() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        self.prompt(&format!("Error: {}", e))?;
+                    }
+                },
+                Ok(GuestLockedCommand::Exit) => match self.exit() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        self.prompt(&format!("Error: {}", e))?;
+                    }
+                },
                 Err(e) => {
                     self.prompt(&format!("Error: {}", e))?;
                 }
@@ -230,33 +244,19 @@ impl CliTerminal<Guest, Locked> {
         GuestLockedCommand::try_from(command.trim())
     }
 
-    fn login(self) -> Result<PromptPerspective, Box<dyn Error>> {
-        self.prompt("Enter your username:")?;
-        let mut username = String::new();
-        std::io::stdin().read_line(&mut username)?;
-
-        self.prompt("Enter your password:")?;
-        let mut password = String::new();
-        std::io::stdin().read_line(&mut password)?;
-
-        let username = Name::parse(username.trim())?;
-        let password = Password::parse(password.trim())?;
-
+    fn login(self, username: Name, password: Password) -> PromptPerspective {
         match self.vending_machine.login(&username, &password) {
-            AuthResult::SuccessAdmin(vending_machine) => Ok(PromptPerspective::AdminLocked(
-                CliTerminal::<Admin, Locked> { vending_machine },
-            )),
-            AuthResult::SuccessSupplier(vending_machine) => {
-                Ok(PromptPerspective::SupplierLocked(CliTerminal::<
-                    Supplier,
-                    Locked,
-                > {
-                    vending_machine,
-                }))
+            AuthResult::SuccessAdmin(vending_machine) => {
+                PromptPerspective::AdminLocked(CliTerminal::<Admin, Locked> { vending_machine })
             }
-            AuthResult::Failure(vending_machine) => Ok(PromptPerspective::GuestLocked(
-                CliTerminal::<Guest, Locked> { vending_machine },
-            )),
+            AuthResult::SuccessSupplier(vending_machine) => {
+                PromptPerspective::SupplierLocked(CliTerminal::<Supplier, Locked> {
+                    vending_machine,
+                })
+            }
+            AuthResult::Failure(vending_machine) => {
+                PromptPerspective::GuestLocked(CliTerminal::<Guest, Locked> { vending_machine })
+            }
         }
     }
 }
@@ -266,20 +266,29 @@ impl CliTerminal<Admin, Unlocked> {
         loop {
             match self.choose_command() {
                 Ok(AdminUnlockedCommand::Logout) => {
-                    return self.logout();
+                    return Ok(self.logout());
                 }
-                Ok(AdminUnlockedCommand::ListProducts) => {
-                    self.list_products()?;
-                }
-                Ok(AdminUnlockedCommand::ListSales) => {
-                    self.list_sales()?;
-                }
+                Ok(AdminUnlockedCommand::ListProducts) => match self.list_products() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        self.prompt(&format!("Error: {}", e))?;
+                    }
+                },
+                Ok(AdminUnlockedCommand::ListSales) => match self.list_sales() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        self.prompt(&format!("Error: {}", e))?;
+                    }
+                },
                 Ok(AdminUnlockedCommand::Lock) => {
-                    return self.lock();
+                    return Ok(self.lock());
                 }
-                Ok(AdminUnlockedCommand::Exit) => {
-                    self.exit()?;
-                }
+                Ok(AdminUnlockedCommand::Exit) => match self.exit() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        self.prompt(&format!("Error: {}", e))?;
+                    }
+                },
                 Err(e) => {
                     self.prompt(&format!("Error: {}", e))?;
                 }
@@ -302,12 +311,10 @@ impl CliTerminal<Admin, Unlocked> {
         AdminUnlockedCommand::try_from(command.trim())
     }
 
-    fn lock(self) -> Result<PromptPerspective, Box<dyn Error>> {
-        Ok(PromptPerspective::AdminLocked(
-            CliTerminal::<Admin, Locked> {
-                vending_machine: self.vending_machine.lock(),
-            },
-        ))
+    fn lock(self) -> PromptPerspective {
+        PromptPerspective::AdminLocked(CliTerminal::<Admin, Locked> {
+            vending_machine: self.vending_machine.lock(),
+        })
     }
 }
 
@@ -316,20 +323,29 @@ impl CliTerminal<Admin, Locked> {
         loop {
             match self.choose_command() {
                 Ok(AdminLockedCommand::Logout) => {
-                    return self.logout();
+                    return Ok(self.logout());
                 }
-                Ok(AdminLockedCommand::ListProducts) => {
-                    self.list_products()?;
-                }
-                Ok(AdminLockedCommand::ListSales) => {
-                    self.list_sales()?;
-                }
+                Ok(AdminLockedCommand::ListProducts) => match self.list_products() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        self.prompt(&format!("Error: {}", e))?;
+                    }
+                },
+                Ok(AdminLockedCommand::ListSales) => match self.list_sales() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        self.prompt(&format!("Error: {}", e))?;
+                    }
+                },
                 Ok(AdminLockedCommand::Unlock) => {
-                    return self.unlock();
+                    return Ok(self.unlock());
                 }
-                Ok(AdminLockedCommand::Exit) => {
-                    self.exit()?;
-                }
+                Ok(AdminLockedCommand::Exit) => match self.exit() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        self.prompt(&format!("Error: {}", e))?;
+                    }
+                },
                 Err(e) => {
                     self.prompt(&format!("Error: {}", e))?;
                 }
@@ -352,13 +368,10 @@ impl CliTerminal<Admin, Locked> {
         AdminLockedCommand::try_from(command.trim())
     }
 
-    fn unlock(self) -> Result<PromptPerspective, Box<dyn Error>> {
-        Ok(PromptPerspective::AdminUnlocked(CliTerminal::<
-            Admin,
-            Unlocked,
-        > {
+    fn unlock(self) -> PromptPerspective {
+        PromptPerspective::AdminUnlocked(CliTerminal::<Admin, Unlocked> {
             vending_machine: self.vending_machine.unlock(),
-        }))
+        })
     }
 }
 
@@ -367,17 +380,26 @@ impl CliTerminal<Supplier, Unlocked> {
         loop {
             match self.choose_command() {
                 Ok(SupplierUnlockedCommand::Logout) => {
-                    return self.logout();
+                    return Ok(self.logout());
                 }
-                Ok(SupplierUnlockedCommand::ListProducts) => {
-                    self.list_products()?;
-                }
-                Ok(SupplierUnlockedCommand::SupplyProduct) => {
-                    self.supply_product()?;
-                }
-                Ok(SupplierUnlockedCommand::Exit) => {
-                    self.exit()?;
-                }
+                Ok(SupplierUnlockedCommand::ListProducts) => match self.list_products() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        self.prompt(&format!("Error: {}", e))?;
+                    }
+                },
+                Ok(SupplierUnlockedCommand::SupplyProduct) => match self.supply_product() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        self.prompt(&format!("Error: {}", e))?;
+                    }
+                },
+                Ok(SupplierUnlockedCommand::Exit) => match self.exit() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        self.prompt(&format!("Error: {}", e))?;
+                    }
+                },
                 Err(e) => {
                     self.prompt(&format!("Error: {}", e))?;
                 }
@@ -444,14 +466,20 @@ impl CliTerminal<Supplier, Locked> {
         loop {
             match self.choose_command() {
                 Ok(SupplierLockedCommand::Logout) => {
-                    return self.logout();
+                    return Ok(self.logout());
                 }
-                Ok(SupplierLockedCommand::ListProducts) => {
-                    self.list_products()?;
-                }
-                Ok(SupplierLockedCommand::Exit) => {
-                    self.exit()?;
-                }
+                Ok(SupplierLockedCommand::ListProducts) => match self.list_products() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        self.prompt(&format!("Error: {}", e))?;
+                    }
+                },
+                Ok(SupplierLockedCommand::Exit) => match self.exit() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        self.prompt(&format!("Error: {}", e))?;
+                    }
+                },
                 Err(e) => {
                     self.prompt(&format!("Error: {}", e))?;
                 }

@@ -13,7 +13,7 @@ pub enum PromptPerspective {
 }
 
 impl PromptPerspective {
-    pub fn run(self) -> Result<Self, Box<dyn Error>> {
+    pub fn dispatch(self) -> Result<Self, Box<dyn Error>> {
         match self {
             PromptPerspective::GuestUnlocked(terminal) => terminal.run(),
             PromptPerspective::GuestLocked(terminal) => terminal.run(),
