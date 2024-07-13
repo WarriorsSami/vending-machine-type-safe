@@ -13,12 +13,7 @@ use vending_machine::domain::interfaces::{PaymentTerminal, Terminal};
 #[derive(Clone)]
 pub struct CliPaymentTerminal;
 
-impl Terminal for CliPaymentTerminal {
-    fn prompt(&self, message: &str) -> Result<(), Box<dyn Error>> {
-        println!("{}", message);
-        Ok(())
-    }
-}
+impl Terminal for CliPaymentTerminal {}
 
 impl PaymentTerminal for CliPaymentTerminal {
     fn request(&self) -> Result<Price, Box<dyn Error>> {
@@ -39,42 +34,37 @@ pub struct CliTerminal<U: Role, L: LockStatus> {
     vending_machine: VendingMachine<U, L>,
 }
 
+impl<U: Role, L: LockStatus> Terminal for CliTerminal<U, L> {}
+
 impl CliTerminal<Guest, Unlocked> {
     pub fn new(vending_machine: VendingMachine<Guest, Unlocked>) -> Self {
         Self { vending_machine }
     }
 }
 
-impl<U: Role, L: LockStatus> Terminal for CliTerminal<U, L> {
-    fn prompt(&self, message: &str) -> Result<(), Box<dyn Error>> {
-        println!("{}", message);
-        Ok(())
-    }
-}
-
 impl<U: Role, L: LockStatus> CliTerminal<U, L> {
-    fn list_products(&self) -> Result<(), Box<dyn Error>> {
-        self.prompt("Products:")?;
-        for product in self.vending_machine.look_up() {
-            self.prompt(&format!("{:?}", product))?;
+    async fn list_products(&self) -> Result<(), Box<dyn Error>> {
+        self.prompt("Products:");
+        for product in self.vending_machine.look_up().await {
+            self.prompt(&format!("{:?}", product));
         }
 
         Ok(())
     }
 
     fn exit(&self) -> Result<(), Box<dyn Error>> {
-        self.prompt("Goodbye! Thanks for using the vending machine!")?;
+        self.prompt("Goodbye! Thanks for using the vending machine!");
         std::process::exit(0);
     }
 }
 
 impl<L: LockStatus> CliTerminal<Guest, L> {
     fn pre_login(&self) -> Result<(Name, Password), Box<dyn Error>> {
-        self.prompt("Enter your username:")?;
+        self.prompt("Enter your username:");
         let mut username = String::new();
         std::io::stdin().read_line(&mut username)?;
 
-        self.prompt("Enter your password:")?;
+        self.prompt("Enter your password:");
         let mut password = String::new();
         std::io::stdin().read_line(&mut password)?;
 
@@ -86,10 +76,10 @@ impl<L: LockStatus> CliTerminal<Guest, L> {
 }
 
 impl<L: LockStatus> CliTerminal<Admin, L> {
-    fn list_sales(&self) -> Result<(), Box<dyn Error>> {
-        self.prompt("Sales report:")?;
-        for sale in self.vending_machine.list_sales_report() {
-            self.prompt(&format!("{:?}", sale))?;
+    async fn list_sales(&self) -> Result<(), Box<dyn Error>> {
+        self.prompt("Sales report:");
+        for sale in self.vending_machine.list_sales_report().await {
+            self.prompt(&format!("{:?}", sale));
         }
 
         Ok(())
@@ -113,49 +103,49 @@ impl<U: Authenticated> CliTerminal<U, Locked> {
 }
 
 impl CliTerminal<Guest, Unlocked> {
-    pub fn run(mut self) -> Result<PromptPerspective, Box<dyn Error>> {
+    pub async fn run(mut self) -> PromptPerspective {
         loop {
             match self.choose_command() {
                 Ok(GuestUnlockedCommand::Login) => match self.pre_login() {
                     Ok((username, password)) => {
-                        return Ok(self.login(username, password));
+                        return self.login(username, password);
                     }
                     Err(e) => {
-                        self.prompt(&format!("Error: {}", e))?;
-                    }
-                },
-                Ok(GuestUnlockedCommand::ListProducts) => match self.list_products() {
-                    Ok(_) => {}
-                    Err(e) => {
-                        self.prompt(&format!("Error: {}", e))?;
+                        self.prompt(&format!("Error: {}", e));
                     }
                 },
-                Ok(GuestUnlockedCommand::BuyProduct) => match self.buy_product() {
+                Ok(GuestUnlockedCommand::ListProducts) => match self.list_products().await {
                     Ok(_) => {}
                     Err(e) => {
-                        self.prompt(&format!("Error: {}", e))?;
+                        self.prompt(&format!("Error: {}", e));
+                    }
+                },
+                Ok(GuestUnlockedCommand::BuyProduct) => match self.buy_product().await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        self.prompt(&format!("Error: {}", e));
                     }
                 },
                 Ok(GuestUnlockedCommand::Exit) => match self.exit() {
                     Ok(_) => {}
                     Err(e) => {
-                        self.prompt(&format!("Error: {}", e))?;
+                        self.prompt(&format!("Error: {}", e));
                     }
                 },
                 Err(e) => {
-                    self.prompt(&format!("Error: {}", e))?;
+                    self.prompt(&format!("Error: {}", e));
                 }
             }
-            self.prompt("")?;
+            self.prompt("");
         }
     }
 
     fn choose_command(&self) -> Result<GuestUnlockedCommand, Box<dyn Error>> {
-        self.prompt("Choose a command:")?;
-        self.prompt(&GuestUnlockedCommand::Login.to_string())?;
-        self.prompt(&GuestUnlockedCommand::ListProducts.to_string())?;
-        self.prompt(&GuestUnlockedCommand::BuyProduct.to_string())?;
-        self.prompt(&GuestUnlockedCommand::Exit.to_string())?;
+        self.prompt("Choose a command:");
+        self.prompt(&GuestUnlockedCommand::Login.to_string());
+        self.prompt(&GuestUnlockedCommand::ListProducts.to_string());
+        self.prompt(&GuestUnlockedCommand::BuyProduct.to_string());
+        self.prompt(&GuestUnlockedCommand::Exit.to_string());
 
         let mut command = String::new();
         std::io::stdin().read_line(&mut command)?;
@@ -179,64 +169,64 @@ impl CliTerminal<Guest, Unlocked> {
         }
     }
 
-    fn buy_product(&mut self) -> Result<(), Box<dyn Error>> {
-        self.prompt("Enter the product id:")?;
+    async fn buy_product(&mut self) -> Result<(), Box<dyn Error>> {
+        self.prompt("Enter the product id:");
         let mut product_id = String::new();
         std::io::stdin().read_line(&mut product_id)?;
 
         let product_id = Value::parse(product_id.trim())?;
 
-        self.prompt("Enter the amount:")?;
+        self.prompt("Enter the amount:");
         let mut amount = String::new();
         std::io::stdin().read_line(&mut amount)?;
 
         let amount = Value::parse(amount.trim())?;
 
-        let product = self.vending_machine.buy(product_id, amount)?;
+        let product = self.vending_machine.buy(product_id, amount).await?;
 
-        self.prompt(&format!("Product bought successfully: {:?}", product))?;
+        self.prompt(&format!("Product bought successfully: {:?}", product));
 
         Ok(())
     }
 }
 
 impl CliTerminal<Guest, Locked> {
-    pub fn run(self) -> Result<PromptPerspective, Box<dyn Error>> {
+    pub async fn run(self) -> PromptPerspective {
         loop {
             match self.choose_command() {
                 Ok(GuestLockedCommand::Login) => match self.pre_login() {
                     Ok((username, password)) => {
-                        return Ok(self.login(username, password));
+                        return self.login(username, password);
                     }
                     Err(e) => {
-                        self.prompt(&format!("Error: {}", e))?;
+                        self.prompt(&format!("Error: {}", e));
                     }
                 },
-                Ok(GuestLockedCommand::ListProducts) => match self.list_products() {
+                Ok(GuestLockedCommand::ListProducts) => match self.list_products().await {
                     Ok(_) => {}
                     Err(e) => {
-                        self.prompt(&format!("Error: {}", e))?;
+                        self.prompt(&format!("Error: {}", e));
                     }
                 },
                 Ok(GuestLockedCommand::Exit) => match self.exit() {
                     Ok(_) => {}
                     Err(e) => {
-                        self.prompt(&format!("Error: {}", e))?;
+                        self.prompt(&format!("Error: {}", e));
                     }
                 },
                 Err(e) => {
-                    self.prompt(&format!("Error: {}", e))?;
+                    self.prompt(&format!("Error: {}", e));
                 }
             }
-            self.prompt("")?;
+            self.prompt("");
         }
     }
 
     fn choose_command(&self) -> Result<GuestLockedCommand, Box<dyn Error>> {
-        self.prompt("Choose a command:")?;
-        self.prompt(&GuestLockedCommand::Login.to_string())?;
-        self.prompt(&GuestLockedCommand::ListProducts.to_string())?;
-        self.prompt(&GuestLockedCommand::Exit.to_string())?;
+        self.prompt("Choose a command:");
+        self.prompt(&GuestLockedCommand::Login.to_string());
+        self.prompt(&GuestLockedCommand::ListProducts.to_string());
+        self.prompt(&GuestLockedCommand::Exit.to_string());
 
         let mut command = String::new();
         std::io::stdin().read_line(&mut command)?;
@@ -262,48 +252,48 @@ impl CliTerminal<Guest, Locked> {
 }
 
 impl CliTerminal<Admin, Unlocked> {
-    pub fn run(self) -> Result<PromptPerspective, Box<dyn Error>> {
+    pub async fn run(self) -> PromptPerspective {
         loop {
             match self.choose_command() {
                 Ok(AdminUnlockedCommand::Logout) => {
-                    return Ok(self.logout());
+                    return self.logout();
                 }
-                Ok(AdminUnlockedCommand::ListProducts) => match self.list_products() {
+                Ok(AdminUnlockedCommand::ListProducts) => match self.list_products().await {
                     Ok(_) => {}
                     Err(e) => {
-                        self.prompt(&format!("Error: {}", e))?;
+                        self.prompt(&format!("Error: {}", e));
                     }
                 },
-                Ok(AdminUnlockedCommand::ListSales) => match self.list_sales() {
+                Ok(AdminUnlockedCommand::ListSales) => match self.list_sales().await {
                     Ok(_) => {}
                     Err(e) => {
-                        self.prompt(&format!("Error: {}", e))?;
+                        self.prompt(&format!("Error: {}", e));
                     }
                 },
                 Ok(AdminUnlockedCommand::Lock) => {
-                    return Ok(self.lock());
+                    return self.lock();
                 }
                 Ok(AdminUnlockedCommand::Exit) => match self.exit() {
                     Ok(_) => {}
                     Err(e) => {
-                        self.prompt(&format!("Error: {}", e))?;
+                        self.prompt(&format!("Error: {}", e));
                     }
                 },
                 Err(e) => {
-                    self.prompt(&format!("Error: {}", e))?;
+                    self.prompt(&format!("Error: {}", e));
                 }
             }
-            self.prompt("")?;
+            self.prompt("");
         }
     }
 
     fn choose_command(&self) -> Result<AdminUnlockedCommand, Box<dyn Error>> {
-        self.prompt("Choose a command:")?;
-        self.prompt(&AdminUnlockedCommand::Logout.to_string())?;
-        self.prompt(&AdminUnlockedCommand::ListProducts.to_string())?;
-        self.prompt(&AdminUnlockedCommand::ListSales.to_string())?;
-        self.prompt(&AdminUnlockedCommand::Lock.to_string())?;
-        self.prompt(&AdminUnlockedCommand::Exit.to_string())?;
+        self.prompt("Choose a command:");
+        self.prompt(&AdminUnlockedCommand::Logout.to_string());
+        self.prompt(&AdminUnlockedCommand::ListProducts.to_string());
+        self.prompt(&AdminUnlockedCommand::ListSales.to_string());
+        self.prompt(&AdminUnlockedCommand::Lock.to_string());
+        self.prompt(&AdminUnlockedCommand::Exit.to_string());
 
         let mut command = String::new();
         std::io::stdin().read_line(&mut command)?;
@@ -319,48 +309,48 @@ impl CliTerminal<Admin, Unlocked> {
 }
 
 impl CliTerminal<Admin, Locked> {
-    pub fn run(self) -> Result<PromptPerspective, Box<dyn Error>> {
+    pub async fn run(self) -> PromptPerspective {
         loop {
             match self.choose_command() {
                 Ok(AdminLockedCommand::Logout) => {
-                    return Ok(self.logout());
+                    return self.logout();
                 }
-                Ok(AdminLockedCommand::ListProducts) => match self.list_products() {
+                Ok(AdminLockedCommand::ListProducts) => match self.list_products().await {
                     Ok(_) => {}
                     Err(e) => {
-                        self.prompt(&format!("Error: {}", e))?;
+                        self.prompt(&format!("Error: {}", e));
                     }
                 },
-                Ok(AdminLockedCommand::ListSales) => match self.list_sales() {
+                Ok(AdminLockedCommand::ListSales) => match self.list_sales().await {
                     Ok(_) => {}
                     Err(e) => {
-                        self.prompt(&format!("Error: {}", e))?;
+                        self.prompt(&format!("Error: {}", e));
                     }
                 },
                 Ok(AdminLockedCommand::Unlock) => {
-                    return Ok(self.unlock());
+                    return self.unlock();
                 }
                 Ok(AdminLockedCommand::Exit) => match self.exit() {
                     Ok(_) => {}
                     Err(e) => {
-                        self.prompt(&format!("Error: {}", e))?;
+                        self.prompt(&format!("Error: {}", e));
                     }
                 },
                 Err(e) => {
-                    self.prompt(&format!("Error: {}", e))?;
+                    self.prompt(&format!("Error: {}", e));
                 }
             }
-            self.prompt("")?;
+            self.prompt("");
         }
     }
 
     fn choose_command(&self) -> Result<AdminLockedCommand, Box<dyn Error>> {
-        self.prompt("Choose a command:")?;
-        self.prompt(&AdminLockedCommand::Logout.to_string())?;
-        self.prompt(&AdminLockedCommand::ListProducts.to_string())?;
-        self.prompt(&AdminLockedCommand::ListSales.to_string())?;
-        self.prompt(&AdminLockedCommand::Unlock.to_string())?;
-        self.prompt(&AdminLockedCommand::Exit.to_string())?;
+        self.prompt("Choose a command:");
+        self.prompt(&AdminLockedCommand::Logout.to_string());
+        self.prompt(&AdminLockedCommand::ListProducts.to_string());
+        self.prompt(&AdminLockedCommand::ListSales.to_string());
+        self.prompt(&AdminLockedCommand::Unlock.to_string());
+        self.prompt(&AdminLockedCommand::Exit.to_string());
 
         let mut command = String::new();
         std::io::stdin().read_line(&mut command)?;
@@ -376,44 +366,44 @@ impl CliTerminal<Admin, Locked> {
 }
 
 impl CliTerminal<Supplier, Unlocked> {
-    pub fn run(mut self) -> Result<PromptPerspective, Box<dyn Error>> {
+    pub async fn run(mut self) -> PromptPerspective {
         loop {
             match self.choose_command() {
                 Ok(SupplierUnlockedCommand::Logout) => {
-                    return Ok(self.logout());
+                    return self.logout();
                 }
-                Ok(SupplierUnlockedCommand::ListProducts) => match self.list_products() {
+                Ok(SupplierUnlockedCommand::ListProducts) => match self.list_products().await {
                     Ok(_) => {}
                     Err(e) => {
-                        self.prompt(&format!("Error: {}", e))?;
+                        self.prompt(&format!("Error: {}", e));
                     }
                 },
-                Ok(SupplierUnlockedCommand::SupplyProduct) => match self.supply_product() {
+                Ok(SupplierUnlockedCommand::SupplyProduct) => match self.supply_product().await {
                     Ok(_) => {}
                     Err(e) => {
-                        self.prompt(&format!("Error: {}", e))?;
+                        self.prompt(&format!("Error: {}", e));
                     }
                 },
                 Ok(SupplierUnlockedCommand::Exit) => match self.exit() {
                     Ok(_) => {}
                     Err(e) => {
-                        self.prompt(&format!("Error: {}", e))?;
+                        self.prompt(&format!("Error: {}", e));
                     }
                 },
                 Err(e) => {
-                    self.prompt(&format!("Error: {}", e))?;
+                    self.prompt(&format!("Error: {}", e));
                 }
             }
-            self.prompt("")?;
+            self.prompt("");
         }
     }
 
     fn choose_command(&self) -> Result<SupplierUnlockedCommand, Box<dyn Error>> {
-        self.prompt("Choose a command:")?;
-        self.prompt(&SupplierUnlockedCommand::Logout.to_string())?;
-        self.prompt(&SupplierUnlockedCommand::ListProducts.to_string())?;
-        self.prompt(&SupplierUnlockedCommand::SupplyProduct.to_string())?;
-        self.prompt(&SupplierUnlockedCommand::Exit.to_string())?;
+        self.prompt("Choose a command:");
+        self.prompt(&SupplierUnlockedCommand::Logout.to_string());
+        self.prompt(&SupplierUnlockedCommand::ListProducts.to_string());
+        self.prompt(&SupplierUnlockedCommand::SupplyProduct.to_string());
+        self.prompt(&SupplierUnlockedCommand::Exit.to_string());
 
         let mut command = String::new();
         std::io::stdin().read_line(&mut command)?;
@@ -421,26 +411,26 @@ impl CliTerminal<Supplier, Unlocked> {
         SupplierUnlockedCommand::try_from(command.trim())
     }
 
-    fn supply_product(&mut self) -> Result<(), Box<dyn Error>> {
-        self.prompt("Enter the product id:")?;
+    async fn supply_product(&mut self) -> Result<(), Box<dyn Error>> {
+        self.prompt("Enter the product id:");
         let mut product_id = String::new();
         std::io::stdin().read_line(&mut product_id)?;
 
         let product_id = Value::parse(product_id.trim())?;
 
-        self.prompt("Enter the product name:")?;
+        self.prompt("Enter the product name:");
         let mut product_name = String::new();
         std::io::stdin().read_line(&mut product_name)?;
 
         let product_name = Name::parse(product_name.trim())?;
 
-        self.prompt("Enter the price:")?;
+        self.prompt("Enter the price:");
         let mut price = String::new();
         std::io::stdin().read_line(&mut price)?;
 
         let price = Price::parse(price.trim())?;
 
-        self.prompt("Enter the quantity:")?;
+        self.prompt("Enter the quantity:");
         let mut quantity = String::new();
         std::io::stdin().read_line(&mut quantity)?;
 
@@ -453,46 +443,46 @@ impl CliTerminal<Supplier, Unlocked> {
             quantity,
         };
 
-        self.vending_machine.supply_product(product.clone())?;
+        self.vending_machine.supply_product(product.clone()).await?;
 
-        self.prompt(&format!("Product supplied successfully: {:?}", product))?;
+        self.prompt(&format!("Product supplied successfully: {:?}", product));
 
         Ok(())
     }
 }
 
 impl CliTerminal<Supplier, Locked> {
-    pub fn run(self) -> Result<PromptPerspective, Box<dyn Error>> {
+    pub async fn run(self) -> PromptPerspective {
         loop {
             match self.choose_command() {
                 Ok(SupplierLockedCommand::Logout) => {
-                    return Ok(self.logout());
+                    return self.logout();
                 }
-                Ok(SupplierLockedCommand::ListProducts) => match self.list_products() {
+                Ok(SupplierLockedCommand::ListProducts) => match self.list_products().await {
                     Ok(_) => {}
                     Err(e) => {
-                        self.prompt(&format!("Error: {}", e))?;
+                        self.prompt(&format!("Error: {}", e));
                     }
                 },
                 Ok(SupplierLockedCommand::Exit) => match self.exit() {
                     Ok(_) => {}
                     Err(e) => {
-                        self.prompt(&format!("Error: {}", e))?;
+                        self.prompt(&format!("Error: {}", e));
                     }
                 },
                 Err(e) => {
-                    self.prompt(&format!("Error: {}", e))?;
+                    self.prompt(&format!("Error: {}", e));
                 }
             }
-            self.prompt("")?;
+            self.prompt("");
         }
     }
 
     fn choose_command(&self) -> Result<SupplierLockedCommand, Box<dyn Error>> {
-        self.prompt("Choose a command:")?;
-        self.prompt(&SupplierLockedCommand::Logout.to_string())?;
-        self.prompt(&SupplierLockedCommand::ListProducts.to_string())?;
-        self.prompt(&SupplierLockedCommand::Exit.to_string())?;
+        self.prompt("Choose a command:");
+        self.prompt(&SupplierLockedCommand::Logout.to_string());
+        self.prompt(&SupplierLockedCommand::ListProducts.to_string());
+        self.prompt(&SupplierLockedCommand::Exit.to_string());
 
         let mut command = String::new();
         std::io::stdin().read_line(&mut command)?;

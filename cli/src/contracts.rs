@@ -13,14 +13,14 @@ pub enum PromptPerspective {
 }
 
 impl PromptPerspective {
-    pub fn dispatch(self) -> Result<Self, Box<dyn Error>> {
+    pub async fn dispatch(self) -> Self {
         match self {
-            PromptPerspective::GuestUnlocked(terminal) => terminal.run(),
-            PromptPerspective::GuestLocked(terminal) => terminal.run(),
-            PromptPerspective::AdminUnlocked(terminal) => terminal.run(),
-            PromptPerspective::AdminLocked(terminal) => terminal.run(),
-            PromptPerspective::SupplierUnlocked(terminal) => terminal.run(),
-            PromptPerspective::SupplierLocked(terminal) => terminal.run(),
+            PromptPerspective::GuestUnlocked(terminal) => terminal.run().await,
+            PromptPerspective::GuestLocked(terminal) => terminal.run().await,
+            PromptPerspective::AdminUnlocked(terminal) => terminal.run().await,
+            PromptPerspective::AdminLocked(terminal) => terminal.run().await,
+            PromptPerspective::SupplierUnlocked(terminal) => terminal.run().await,
+            PromptPerspective::SupplierLocked(terminal) => terminal.run().await,
         }
     }
 }

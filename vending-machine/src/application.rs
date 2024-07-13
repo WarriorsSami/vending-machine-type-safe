@@ -43,8 +43,8 @@ pub struct VendingMachine<U: Role, L: LockStatus> {
 }
 
 impl<U: Role, L: LockStatus> VendingMachine<U, L> {
-    pub fn look_up(&self) -> &Vec<Product> {
-        self.product_repository.find_all()
+    pub async fn look_up(&self) -> Vec<Product> {
+        self.product_repository.find_all().await
     }
 }
 
@@ -102,7 +102,7 @@ impl VendingMachine<Guest, Unlocked> {
     fn pay(&self, amount: Price) -> Result<(), Box<dyn std::error::Error>> {
         let mut payed_amount = Price::default();
         self.payment_terminal
-            .prompt(format!("You have to pay: {}", amount.as_value()).as_str())?;
+            .prompt(format!("You have to pay: {}", amount.as_value()).as_str());
 
         loop {
             match self.payment_terminal.request() {
@@ -119,7 +119,7 @@ impl VendingMachine<Guest, Unlocked> {
                                 amount.as_value() - payed_amount.as_value()
                             )
                             .as_str(),
-                        )?;
+                        );
                     }
                 }
                 Err(_) => continue,
@@ -127,7 +127,7 @@ impl VendingMachine<Guest, Unlocked> {
         }
     }
 
-    pub fn buy(
+    pub async fn buy(
         &mut self,
         column_id: Value,
         qty: Value,
@@ -135,6 +135,7 @@ impl VendingMachine<Guest, Unlocked> {
         let product = self
             .product_repository
             .find(column_id)
+            .await
             .ok_or("Product not found")?;
 
         let total_price =
@@ -146,24 +147,28 @@ impl VendingMachine<Guest, Unlocked> {
             Value::parse_i32(product.quantity.clone().as_value() as i32 - qty.as_value() as i32)
                 .map_err(|_| "Insufficient quantity in stock")?;
 
-        self.product_repository.save(Product {
-            quantity: new_qty,
-            ..product.clone()
-        })?;
+        self.product_repository
+            .save(Product {
+                quantity: new_qty,
+                ..product.clone()
+            })
+            .await?;
 
-        self.sale_repository.save(Sale {
-            product_name: product.name.clone(),
-            price: Price::parse_f32(total_price.as_value())?,
-            date: chrono::Utc::now(),
-        })?;
+        self.sale_repository
+            .save(Sale {
+                product_name: product.name.clone(),
+                price: Price::parse_f32(total_price.as_value())?,
+                date: chrono::Utc::now(),
+            })
+            .await?;
 
         Ok(product)
     }
 }
 
 impl<L: LockStatus> VendingMachine<Admin, L> {
-    pub fn list_sales_report(&self) -> &Vec<Sale> {
-        self.sale_repository.find_all()
+    pub async fn list_sales_report(&self) -> Vec<Sale> {
+        self.sale_repository.find_all().await
     }
 }
 
@@ -192,7 +197,10 @@ impl VendingMachine<Admin, Locked> {
 }
 
 impl VendingMachine<Supplier, Unlocked> {
-    pub fn supply_product(&mut self, product: Product) -> Result<(), Box<dyn std::error::Error>> {
-        self.product_repository.save(product)
+    pub async fn supply_product(
+        &mut self,
+        product: Product,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        self.product_repository.save(product).await
     }
 }

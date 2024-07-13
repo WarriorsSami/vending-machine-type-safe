@@ -3,6 +3,12 @@ name = "cli"
 version = "0.1.0"
 edition = "2021"
 
+[profile.dev.package.sqlx-macros]
+opt-level = 3
+
 [dependencies]
 vending-machine = { path = "../vending-machine" }
 infrastructure = { path = "../infrastructure" }
+tokio = { version = "1.38.0", features = ["rt", "rt-multi-thread", "macros"] }
+dotenvy = "0.15.7"
+sqlx = { version = "0.7.4", features = ["sqlite", "runtime-tokio", "chrono"] }
