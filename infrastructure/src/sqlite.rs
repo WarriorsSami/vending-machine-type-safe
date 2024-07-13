@@ -54,12 +54,12 @@ impl ProductRepository for SqliteProductRepository {
     async fn save(&mut self, product: Product) -> Result<(), Box<dyn std::error::Error>> {
         let existing_product = self.find(product.column_id.clone()).await;
         match existing_product {
-            Some(product) => {
+            Some(_) => {
                 let name = product.name.clone().as_ref().to_string();
                 let price = product.price.clone().as_value();
                 let quantity = product.quantity.clone().as_value() as i32;
                 let column_id = product.column_id.clone().as_value() as i32;
-
+                
                 sqlx::query!(
                     r#"UPDATE product SET name = ?, price = ?, quantity = ? WHERE column_id = ?"#,
                     name,
@@ -133,7 +133,7 @@ impl TryFrom<ProductSalePair> for Sale {
     fn try_from(pair: ProductSalePair) -> Result<Self, Self::Error> {
         let (product, sale) = (pair.0, pair.1);
         Ok(Sale {
-            date: DateTime::<Utc>::from_utc(sale.date, Utc),
+            date: DateTime::<Utc>::from_naive_utc_and_offset(sale.date, Utc),
             product_name: Name::parse(product.name.as_str())?,
             price: Price::parse_f32(sale.price as f32)?,
         })

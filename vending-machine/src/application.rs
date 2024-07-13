@@ -141,17 +141,18 @@ impl VendingMachine<Guest, Unlocked> {
         let total_price =
             Price::parse_f32(product.price.clone().as_value() * qty.as_value() as f32)?;
 
-        self.pay(total_price.clone())?;
-
         let new_qty =
             Value::parse_i32(product.quantity.clone().as_value() as i32 - qty.as_value() as i32)
                 .map_err(|_| "Insufficient quantity in stock")?;
+        
+        self.pay(total_price.clone())?;
 
+        let bought_product = Product {
+            quantity: new_qty,
+            ..product.clone()
+        };
         self.product_repository
-            .save(Product {
-                quantity: new_qty,
-                ..product.clone()
-            })
+            .save(bought_product.clone())
             .await?;
 
         self.sale_repository
@@ -162,7 +163,7 @@ impl VendingMachine<Guest, Unlocked> {
             })
             .await?;
 
-        Ok(product)
+        Ok(bought_product)
     }
 }
 
