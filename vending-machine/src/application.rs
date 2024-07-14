@@ -4,12 +4,21 @@ use crate::domain::interfaces;
 
 pub mod states {
     use crate::application::VendingMachine;
+    use dyn_clone::{clone_trait_object, DynClone};
 
-    pub trait Role {}
+    clone_trait_object!(Role);
+    clone_trait_object!(LockStatus);
+
+    pub trait Role: Send + Sync + DynClone {}
     pub trait Authenticated: Role {}
 
+    #[derive(Clone)]
     pub struct Guest;
+
+    #[derive(Clone)]
     pub struct Admin;
+
+    #[derive(Clone)]
     pub struct Supplier;
 
     impl Role for Guest {}
@@ -25,15 +34,19 @@ pub mod states {
         Failure(VendingMachine<Guest, L>),
     }
 
-    pub trait LockStatus {}
+    pub trait LockStatus: Send + Sync + DynClone {}
 
+    #[derive(Clone)]
     pub struct Locked;
+
+    #[derive(Clone)]
     pub struct Unlocked;
 
     impl LockStatus for Locked {}
     impl LockStatus for Unlocked {}
 }
 
+#[derive(Clone)]
 pub struct VendingMachine<U: Role, L: LockStatus> {
     product_repository: Box<dyn interfaces::ProductRepository>,
     sale_repository: Box<dyn interfaces::SaleRepository>,
@@ -144,16 +157,14 @@ impl VendingMachine<Guest, Unlocked> {
         let new_qty =
             Value::parse_i32(product.quantity.clone().as_value() as i32 - qty.as_value() as i32)
                 .map_err(|_| "Insufficient quantity in stock")?;
-        
+
         self.pay(total_price.clone())?;
 
         let bought_product = Product {
             quantity: new_qty,
             ..product.clone()
         };
-        self.product_repository
-            .save(bought_product.clone())
-            .await?;
+        self.product_repository.save(bought_product.clone()).await?;
 
         self.sale_repository
             .save(Sale {

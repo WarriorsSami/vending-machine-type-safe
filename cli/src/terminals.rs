@@ -30,6 +30,7 @@ impl PaymentTerminal for CliPaymentTerminal {
     }
 }
 
+#[derive(Clone)]
 pub struct CliTerminal<U: Role, L: LockStatus> {
     vending_machine: VendingMachine<U, L>,
 }

@@ -136,27 +136,32 @@ pub mod entities {
 pub mod interfaces {
     use super::entities::{Price, Product, Sale, Value};
     use async_trait::async_trait;
+    use dyn_clone::{clone_trait_object, DynClone};
+
+    clone_trait_object!(ProductRepository);
+    clone_trait_object!(SaleRepository);
+    clone_trait_object!(PaymentTerminal);
 
     #[async_trait]
-    pub trait ProductRepository {
+    pub trait ProductRepository: Send + Sync + DynClone {
         async fn find(&self, column_id: Value) -> Option<Product>;
         async fn save(&mut self, product: Product) -> Result<(), Box<dyn std::error::Error>>;
         async fn find_all(&self) -> Vec<Product>;
     }
 
     #[async_trait]
-    pub trait SaleRepository {
+    pub trait SaleRepository: Send + Sync + DynClone {
         async fn save(&mut self, sale: Sale) -> Result<(), Box<dyn std::error::Error>>;
         async fn find_all(&self) -> Vec<Sale>;
     }
 
-    pub trait Terminal {
+    pub trait Terminal: Send + Sync {
         fn prompt(&self, message: &str) {
             println!("{}", message);
         }
     }
 
-    pub trait PaymentTerminal: Terminal {
+    pub trait PaymentTerminal: Terminal + DynClone {
         fn request(&self) -> Result<Price, Box<dyn std::error::Error>>;
         fn refund(&self, amount: Price) -> Result<(), Box<dyn std::error::Error>>;
     }

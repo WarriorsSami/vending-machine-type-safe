@@ -4,6 +4,7 @@ use sqlx::SqlitePool;
 use vending_machine::domain::entities::{Name, Price, Product, Sale, Value};
 use vending_machine::domain::interfaces::{ProductRepository, SaleRepository};
 
+#[derive(Clone)]
 pub struct SqliteProductRepository {
     pool: SqlitePool,
 }
@@ -59,7 +60,7 @@ impl ProductRepository for SqliteProductRepository {
                 let price = product.price.clone().as_value();
                 let quantity = product.quantity.clone().as_value() as i32;
                 let column_id = product.column_id.clone().as_value() as i32;
-                
+
                 sqlx::query!(
                     r#"UPDATE product SET name = ?, price = ?, quantity = ? WHERE column_id = ?"#,
                     name,
@@ -108,6 +109,7 @@ impl ProductRepository for SqliteProductRepository {
     }
 }
 
+#[derive(Clone)]
 pub struct SqliteSaleRepository {
     pool: SqlitePool,
 }

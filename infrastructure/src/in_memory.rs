@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use vending_machine::domain::entities::{Product, Sale, Value};
 use vending_machine::domain::interfaces::{ProductRepository, SaleRepository};
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct InMemoryProductRepository {
     products: Vec<Product>,
 }
@@ -35,7 +35,7 @@ impl ProductRepository for InMemoryProductRepository {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct InMemorySaleRepository {
     sales: Vec<Sale>,
 }

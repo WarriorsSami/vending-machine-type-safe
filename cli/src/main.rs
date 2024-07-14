@@ -1,28 +1,40 @@
 use sqlx::SqlitePool;
+
+use infrastructure::sqlite::{SqliteProductRepository, SqliteSaleRepository};
+use vending_machine::application::states::{Guest, Unlocked};
 use vending_machine::application::VendingMachine;
 
 use crate::contracts::PromptPerspective;
-use crate::terminals::CliTerminal;
+use crate::di::DIManager;
+use crate::terminals::{CliPaymentTerminal, CliTerminal};
 
 mod contracts;
+mod di;
 mod terminals;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // let product_repository = Box::new(InMemoryProductRepository::default());
-    // let sale_repository = Box::new(infrastructure::in_memory::InMemorySaleRepository::default());
     dotenvy::dotenv().ok();
 
-    let pool = SqlitePool::connect(&std::env::var("DATABASE_URL")?).await?;
-    let product_repository = Box::new(infrastructure::sqlite::SqliteProductRepository::new(
-        pool.clone(),
-    ));
-    let sale_repository = Box::new(infrastructure::sqlite::SqliteSaleRepository::new(pool));
-    let payment_terminal = Box::new(terminals::CliPaymentTerminal);
+    let mut manager = DIManager::new();
 
-    let vending_machine =
-        VendingMachine::new(product_repository, sale_repository, payment_terminal);
-    let mut terminal = PromptPerspective::GuestUnlocked(CliTerminal::new(vending_machine));
+    // manager.build::<InMemoryProductRepository>().await;
+    // manager.build::<InMemorySaleRepository>().await;
+
+    manager.build::<SqlitePool>().await;
+    manager.build::<SqliteProductRepository>().await;
+    manager.build::<SqliteSaleRepository>().await;
+    manager.build::<CliPaymentTerminal>().await;
+    manager.build::<VendingMachine<Guest, Unlocked>>().await;
+    let terminal = manager
+        .build::<CliTerminal<Guest, Unlocked>>()
+        .await
+        .unwrap()
+        .lock()
+        .unwrap()
+        .clone();
+
+    let mut terminal = PromptPerspective::GuestUnlocked(terminal);
 
     loop {
         terminal = terminal.dispatch().await;
