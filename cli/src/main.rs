@@ -5,7 +5,7 @@ use vending_machine::application::states::{Guest, Unlocked};
 use vending_machine::application::VendingMachine;
 
 use crate::contracts::PromptPerspective;
-use crate::di::DIManager;
+use crate::di::core::DIManager;
 use crate::terminals::{CliPaymentTerminal, CliTerminal};
 
 mod contracts;
