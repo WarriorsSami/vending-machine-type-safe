@@ -1,10 +1,14 @@
+use async_trait::async_trait;
+use yadir::core::{DIBuilder, DIObj};
+
 use crate::application::states::*;
 use crate::domain::entities::{Name, Password, Price, Product, Sale, Value};
-use crate::domain::interfaces;
+use crate::domain::interfaces::{PaymentTerminal, ProductRepository, SaleRepository};
 
 pub mod states {
-    use crate::application::VendingMachine;
     use dyn_clone::{clone_trait_object, DynClone};
+
+    use crate::application::VendingMachine;
 
     clone_trait_object!(Role);
     clone_trait_object!(LockStatus);
@@ -48,11 +52,33 @@ pub mod states {
 
 #[derive(Clone)]
 pub struct VendingMachine<U: Role, L: LockStatus> {
-    product_repository: Box<dyn interfaces::ProductRepository>,
-    sale_repository: Box<dyn interfaces::SaleRepository>,
-    payment_terminal: Box<dyn interfaces::PaymentTerminal>,
+    product_repository: Box<dyn ProductRepository>,
+    sale_repository: Box<dyn SaleRepository>,
+    payment_terminal: Box<dyn PaymentTerminal>,
     _role: std::marker::PhantomData<U>,
     _lock: std::marker::PhantomData<L>,
+}
+
+#[async_trait]
+impl DIBuilder for VendingMachine<Guest, Unlocked> {
+    type Input = (
+        DIObj<Box<dyn ProductRepository>>,
+        (
+            DIObj<Box<dyn SaleRepository>>,
+            (DIObj<Box<dyn PaymentTerminal>>, ()),
+        ),
+    );
+    type Output = Self;
+
+    async fn build(
+        (product_repository, (sale_repository, (payment_terminal, _))): Self::Input,
+    ) -> Self::Output {
+        let product_repository = product_repository.lock().unwrap().clone();
+        let sale_repository = sale_repository.lock().unwrap().clone();
+        let payment_terminal = payment_terminal.lock().unwrap().clone();
+
+        VendingMachine::new(product_repository, sale_repository, payment_terminal)
+    }
 }
 
 impl<U: Role, L: LockStatus> VendingMachine<U, L> {
@@ -99,9 +125,9 @@ impl<L: LockStatus> VendingMachine<Guest, L> {
 
 impl VendingMachine<Guest, Unlocked> {
     pub fn new(
-        product_repository: Box<dyn interfaces::ProductRepository>,
-        sale_repository: Box<dyn interfaces::SaleRepository>,
-        payment_terminal: Box<dyn interfaces::PaymentTerminal>,
+        product_repository: Box<dyn ProductRepository>,
+        sale_repository: Box<dyn SaleRepository>,
+        payment_terminal: Box<dyn PaymentTerminal>,
     ) -> VendingMachine<Guest, Unlocked> {
         VendingMachine::<Guest, Unlocked> {
             product_repository,

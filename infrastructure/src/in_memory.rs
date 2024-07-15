@@ -1,10 +1,21 @@
 use async_trait::async_trait;
 use vending_machine::domain::entities::{Product, Sale, Value};
 use vending_machine::domain::interfaces::{ProductRepository, SaleRepository};
+use yadir::core::DIBuilder;
 
 #[derive(Default, Clone)]
 pub struct InMemoryProductRepository {
     products: Vec<Product>,
+}
+
+#[async_trait]
+impl DIBuilder for InMemoryProductRepository {
+    type Input = ();
+    type Output = Box<dyn ProductRepository>;
+
+    async fn build(_: Self::Input) -> Self::Output {
+        Box::new(InMemoryProductRepository::default())
+    }
 }
 
 #[async_trait]
@@ -38,6 +49,16 @@ impl ProductRepository for InMemoryProductRepository {
 #[derive(Default, Clone)]
 pub struct InMemorySaleRepository {
     sales: Vec<Sale>,
+}
+
+#[async_trait]
+impl DIBuilder for InMemorySaleRepository {
+    type Input = ();
+    type Output = Box<dyn SaleRepository>;
+
+    async fn build(_: Self::Input) -> Self::Output {
+        Box::new(InMemorySaleRepository::default())
+    }
 }
 
 #[async_trait]

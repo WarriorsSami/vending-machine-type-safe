@@ -1,12 +1,29 @@
 use async_trait::async_trait;
-use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
 use sqlx::SqlitePool;
+use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
+use yadir::core::DIBuilder;
+
 use vending_machine::domain::entities::{Name, Price, Product, Sale, Value};
 use vending_machine::domain::interfaces::{ProductRepository, SaleRepository};
 
 #[derive(Clone)]
 pub struct SqliteProductRepository {
     pool: SqlitePool,
+}
+
+#[async_trait]
+impl DIBuilder for SqliteProductRepository {
+    type Input = ();
+    type Output = Box<dyn ProductRepository>;
+
+    async fn build(_: Self::Input) -> Self::Output {
+        let dsn = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+        let pool = SqlitePool::connect(&dsn)
+            .await
+            .expect("Failed to connect to database");
+
+        Box::new(SqliteProductRepository::new(pool))
+    }
 }
 
 impl SqliteProductRepository {
@@ -112,6 +129,21 @@ impl ProductRepository for SqliteProductRepository {
 #[derive(Clone)]
 pub struct SqliteSaleRepository {
     pool: SqlitePool,
+}
+
+#[async_trait]
+impl DIBuilder for SqliteSaleRepository {
+    type Input = ();
+    type Output = Box<dyn SaleRepository>;
+
+    async fn build(_: Self::Input) -> Self::Output {
+        let dsn = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+        let pool = SqlitePool::connect(&dsn)
+            .await
+            .expect("Failed to connect to database");
+
+        Box::new(SqliteSaleRepository::new(pool))
+    }
 }
 
 impl SqliteSaleRepository {
