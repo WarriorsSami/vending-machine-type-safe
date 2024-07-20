@@ -7,3 +7,9 @@ members = [
 ]
 
 resolver = "2"
+
+[workspace.dependencies]
+tokio = { version = "1.38.0", default-features = false }
+sqlx = { version = "0.7.4", default-features = false }
+async-trait = { version = "0.1.81", default-features = false }
+yadir = { version = "0.2.3", default-features = false }

@@ -1,5 +1,7 @@
 use async_trait::async_trait;
-use yadir::core::{DIBuilder, DIObj};
+use yadir::core::contracts::DIBuilder;
+use yadir::core::primitives::DIObj;
+use yadir::{deps, let_deps};
 
 use crate::application::states::*;
 use crate::domain::entities::{Name, Password, Price, Product, Sale, Value};
@@ -61,21 +63,15 @@ pub struct VendingMachine<U: Role, L: LockStatus> {
 
 #[async_trait]
 impl DIBuilder for VendingMachine<Guest, Unlocked> {
-    type Input = (
-        DIObj<Box<dyn ProductRepository>>,
-        (
-            DIObj<Box<dyn SaleRepository>>,
-            (DIObj<Box<dyn PaymentTerminal>>, ()),
-        ),
+    type Input = deps!(
+        Box<dyn ProductRepository>,
+        Box<dyn SaleRepository>,
+        Box<dyn PaymentTerminal>
     );
     type Output = Self;
 
-    async fn build(
-        (product_repository, (sale_repository, (payment_terminal, _))): Self::Input,
-    ) -> Self::Output {
-        let product_repository = product_repository.lock().unwrap().clone();
-        let sale_repository = sale_repository.lock().unwrap().clone();
-        let payment_terminal = payment_terminal.lock().unwrap().clone();
+    async fn build(input: Self::Input) -> Self::Output {
+        let_deps!(product_repository, sale_repository, payment_terminal <- input);
 
         VendingMachine::new(product_repository, sale_repository, payment_terminal)
     }

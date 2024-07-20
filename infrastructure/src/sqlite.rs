@@ -1,7 +1,8 @@
 use async_trait::async_trait;
-use sqlx::SqlitePool;
 use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
-use yadir::core::DIBuilder;
+use sqlx::SqlitePool;
+use yadir::core::contracts::DIBuilder;
+use yadir::deps;
 
 use vending_machine::domain::entities::{Name, Price, Product, Sale, Value};
 use vending_machine::domain::interfaces::{ProductRepository, SaleRepository};
@@ -13,7 +14,7 @@ pub struct SqliteProductRepository {
 
 #[async_trait]
 impl DIBuilder for SqliteProductRepository {
-    type Input = ();
+    type Input = deps!();
     type Output = Box<dyn ProductRepository>;
 
     async fn build(_: Self::Input) -> Self::Output {
@@ -133,7 +134,7 @@ pub struct SqliteSaleRepository {
 
 #[async_trait]
 impl DIBuilder for SqliteSaleRepository {
-    type Input = ();
+    type Input = deps!();
     type Output = Box<dyn SaleRepository>;
 
     async fn build(_: Self::Input) -> Self::Output {

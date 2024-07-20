@@ -10,20 +10,12 @@ use vending_machine::application::states::{
 use vending_machine::application::VendingMachine;
 use vending_machine::domain::entities::{Name, Password, Price, Product, Value};
 use vending_machine::domain::interfaces::{PaymentTerminal, Terminal};
-use yadir::core::{DIBuilder, DIObj};
+use yadir::core::contracts::DIBuilder;
+use yadir::{deps, let_deps, DIBuilder};
 
-#[derive(Clone)]
+#[derive(Clone, DIBuilder)]
+#[build_as(Box<dyn PaymentTerminal>)]
 pub struct CliPaymentTerminal;
-
-#[async_trait]
-impl DIBuilder for CliPaymentTerminal {
-    type Input = ();
-    type Output = Box<dyn PaymentTerminal>;
-
-    async fn build(_: Self::Input) -> Self::Output {
-        Box::new(CliPaymentTerminal)
-    }
-}
 
 impl Terminal for CliPaymentTerminal {}
 
@@ -49,11 +41,11 @@ pub struct CliTerminal<U: Role, L: LockStatus> {
 
 #[async_trait]
 impl DIBuilder for CliTerminal<Guest, Unlocked> {
-    type Input = (DIObj<VendingMachine<Guest, Unlocked>>, ());
+    type Input = deps!(VendingMachine<Guest, Unlocked>);
     type Output = Self;
 
-    async fn build((vending_machine, _): Self::Input) -> Self::Output {
-        let vending_machine = vending_machine.lock().unwrap().clone();
+    async fn build(input: Self::Input) -> Self::Output {
+        let_deps!(vending_machine <- input);
 
         CliTerminal::new(vending_machine)
     }
