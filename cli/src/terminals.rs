@@ -11,6 +11,7 @@ use vending_machine::application::VendingMachine;
 use vending_machine::domain::entities::{Name, Password, Price, Product, Value};
 use vending_machine::domain::interfaces::{PaymentTerminal, Terminal};
 use yadir::core::contracts::DIBuilder;
+use yadir::core::primitives::DIObj;
 use yadir::{deps, let_deps, DIBuilder};
 
 #[derive(Clone, DIBuilder)]

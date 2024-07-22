@@ -359,6 +359,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "futures"
+version = "0.3.30"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "645c6916888f6cb6350d2550b80fb63e734897a8498abe35cfb732b6487804b0"
+dependencies = [
+ "futures-channel",
+ "futures-core",
+ "futures-executor",
+ "futures-io",
+ "futures-sink",
+ "futures-task",
+ "futures-util",
+]
+
+[[package]]
 name = "futures-channel"
 version = "0.3.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -420,6 +435,7 @@ version = "0.3.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d6401deb83407ab3da39eba7e33987a73c3df0c82b4bb5813ee871c19c41d48"
 dependencies = [
+ "futures-channel",
  "futures-core",
  "futures-io",
  "futures-sink",
@@ -572,6 +588,7 @@ name = "infrastructure"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "futures",
  "sqlx",
  "vending-machine",
  "yadir",
@@ -1768,9 +1785,9 @@ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
 
 [[package]]
 name = "yadir"
-version = "0.2.3"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d6512194af3fc29a8c122cb1ff368e9c2915ea7ce18de1d5f880c16e122991a"
+checksum = "eb05609c2376e766fd92ef974e044b61e2b45ef73c2fe0b006a967c767e60e76"
 dependencies = [
  "async-trait",
  "claim",
@@ -1781,9 +1798,9 @@ dependencies = [
 
 [[package]]
 name = "yadir_derive"
-version = "0.1.2"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c24ee22added2b4824a47c6596637d873d85ab535e2a7689f6ddd88982c7b8eb"
+checksum = "7c63fe3a043aac729ae91900fb008e7b6eb98f0563d98682b1b4597fed869b35"
 dependencies = [
  "proc-macro2",
  "quote",

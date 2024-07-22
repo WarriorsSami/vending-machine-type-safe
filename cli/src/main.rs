@@ -1,8 +1,7 @@
-use yadir::core::DIManager;
-
-use infrastructure::sqlite::{SqliteProductRepository, SqliteSaleRepository};
+use infrastructure::sqlite::{DbConn, SqliteProductRepository, SqliteSaleRepository};
 use vending_machine::application::states::{Guest, Unlocked};
 use vending_machine::application::VendingMachine;
+use yadir::core::primitives::{DIManager, Lifetime};
 
 use crate::contracts::PromptPerspective;
 use crate::terminals::{CliPaymentTerminal, CliTerminal};
@@ -16,20 +15,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut manager = DIManager::default();
 
-    // manager.build::<InMemoryProductRepository>().await;
-    // manager.build::<InMemorySaleRepository>().await;
+    manager
+        .register::<DbConn>(Some(Lifetime::Singleton))
+        .await
+        .register::<SqliteProductRepository>(Some(Lifetime::Singleton))
+        .await
+        .register::<SqliteSaleRepository>(Some(Lifetime::Singleton))
+        .await
+        .register::<CliPaymentTerminal>(Some(Lifetime::Singleton))
+        .await
+        .register::<VendingMachine<Guest, Unlocked>>(Some(Lifetime::Singleton))
+        .await
+        .register::<CliTerminal<Guest, Unlocked>>(Some(Lifetime::Singleton))
+        .await;
 
-    manager.build::<SqliteProductRepository>().await;
-    manager.build::<SqliteSaleRepository>().await;
-    manager.build::<CliPaymentTerminal>().await;
-    manager.build::<VendingMachine<Guest, Unlocked>>().await;
     let terminal = manager
-        .build::<CliTerminal<Guest, Unlocked>>()
+        .resolve::<CliTerminal<Guest, Unlocked>>()
         .await
         .unwrap()
-        .lock()
-        .unwrap()
-        .clone();
+        .extract();
 
     let mut terminal = PromptPerspective::GuestUnlocked(terminal);
 

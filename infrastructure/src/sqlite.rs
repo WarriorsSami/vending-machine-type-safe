@@ -2,35 +2,33 @@ use async_trait::async_trait;
 use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
 use sqlx::SqlitePool;
 use yadir::core::contracts::DIBuilder;
-use yadir::deps;
+use yadir::core::primitives::DIObj;
+use yadir::{deps, DIBuilder};
 
 use vending_machine::domain::entities::{Name, Price, Product, Sale, Value};
 use vending_machine::domain::interfaces::{ProductRepository, SaleRepository};
 
-#[derive(Clone)]
-pub struct SqliteProductRepository {
-    pool: SqlitePool,
-}
+#[derive(Clone, DIBuilder)]
+#[build_method("default")]
+pub struct DbConn(SqlitePool);
 
-#[async_trait]
-impl DIBuilder for SqliteProductRepository {
-    type Input = deps!();
-    type Output = Box<dyn ProductRepository>;
-
-    async fn build(_: Self::Input) -> Self::Output {
+impl Default for DbConn {
+    fn default() -> Self {
         let dsn = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-        let pool = SqlitePool::connect(&dsn)
-            .await
-            .expect("Failed to connect to database");
+        let pool = SqlitePool::connect(&dsn);
 
-        Box::new(SqliteProductRepository::new(pool))
+        futures::executor::block_on(async {
+            DbConn(pool.await.expect("Failed to connect to database"))
+        })
     }
 }
 
-impl SqliteProductRepository {
-    pub fn new(pool: SqlitePool) -> Self {
-        Self { pool }
-    }
+#[derive(Default, Clone, DIBuilder)]
+#[build_as(Box<dyn ProductRepository>)]
+#[build_method("default")]
+pub struct SqliteProductRepository {
+    #[deps]
+    pool: DbConn,
 }
 
 struct RawProduct {
@@ -63,7 +61,7 @@ impl ProductRepository for SqliteProductRepository {
             r#"SELECT column_id, name, price, quantity FROM product WHERE column_id = ?"#,
             column_id
         )
-        .fetch_one(&self.pool)
+        .fetch_one(&self.pool.0)
         .await
         .ok()?;
 
@@ -86,7 +84,7 @@ impl ProductRepository for SqliteProductRepository {
                     quantity,
                     column_id
                 )
-                .execute(&self.pool)
+                .execute(&self.pool.0)
                 .await?;
             }
             None => {
@@ -102,7 +100,7 @@ impl ProductRepository for SqliteProductRepository {
                     price,
                     quantity
                 )
-                .execute(&self.pool)
+                .execute(&self.pool.0)
                 .await?;
             }
         }
@@ -115,7 +113,7 @@ impl ProductRepository for SqliteProductRepository {
             RawProduct,
             r#"SELECT column_id, name, price, quantity FROM product"#
         )
-        .fetch_all(&self.pool)
+        .fetch_all(&self.pool.0)
         .await
         .unwrap_or(vec![]);
 
@@ -127,30 +125,12 @@ impl ProductRepository for SqliteProductRepository {
     }
 }
 
-#[derive(Clone)]
+#[derive(Default, Clone, DIBuilder)]
+#[build_as(Box<dyn SaleRepository>)]
+#[build_method("default")]
 pub struct SqliteSaleRepository {
-    pool: SqlitePool,
-}
-
-#[async_trait]
-impl DIBuilder for SqliteSaleRepository {
-    type Input = deps!();
-    type Output = Box<dyn SaleRepository>;
-
-    async fn build(_: Self::Input) -> Self::Output {
-        let dsn = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-        let pool = SqlitePool::connect(&dsn)
-            .await
-            .expect("Failed to connect to database");
-
-        Box::new(SqliteSaleRepository::new(pool))
-    }
-}
-
-impl SqliteSaleRepository {
-    pub fn new(pool: SqlitePool) -> Self {
-        Self { pool }
-    }
+    #[deps]
+    pool: DbConn,
 }
 
 struct RawSale {
@@ -185,7 +165,7 @@ impl SaleRepository for SqliteSaleRepository {
             r#"SELECT column_id, name, price, quantity FROM product WHERE name = ?"#,
             product_name
         )
-        .fetch_one(&self.pool)
+        .fetch_one(&self.pool.0)
         .await?;
 
         let product_id = product.column_id;
@@ -197,7 +177,7 @@ impl SaleRepository for SqliteSaleRepository {
             price,
             product_id
         )
-        .execute(&self.pool)
+        .execute(&self.pool.0)
         .await?;
 
         Ok(())
@@ -205,7 +185,7 @@ impl SaleRepository for SqliteSaleRepository {
 
     async fn find_all(&self) -> Vec<Sale> {
         let raw_sales = sqlx::query_as!(RawSale, r#"SELECT id, date, price, product_id FROM sale"#)
-            .fetch_all(&self.pool)
+            .fetch_all(&self.pool.0)
             .await
             .unwrap_or(vec![]);
 
@@ -216,7 +196,7 @@ impl SaleRepository for SqliteSaleRepository {
                 r#"SELECT column_id, name, price, quantity FROM product WHERE column_id = ?"#,
                 sale.product_id
             )
-            .fetch_one(&self.pool)
+            .fetch_one(&self.pool.0)
             .await;
 
             if let Ok(product) = product {

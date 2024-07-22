@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 vending-machine = { path = "../vending-machine" }
-sqlx = { workspace = true, features = ["sqlite", "runtime-tokio", "chrono"] }
+sqlx = { workspace = true, features = ["sqlite", "runtime-tokio", "chrono", "macros"] }
 async-trait = { workspace = true }
 yadir = { workspace = true, features = ["derive"] }
+futures = { workspace = true, features = ["executor"] }

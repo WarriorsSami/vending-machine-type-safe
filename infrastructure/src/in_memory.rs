@@ -1,7 +1,10 @@
 use async_trait::async_trait;
+use yadir::core::contracts::DIBuilder;
+use yadir::deps;
+use yadir::DIBuilder;
+
 use vending_machine::domain::entities::{Product, Sale, Value};
 use vending_machine::domain::interfaces::{ProductRepository, SaleRepository};
-use yadir::DIBuilder;
 
 #[derive(Default, Clone, DIBuilder)]
 #[build_as(Box<dyn ProductRepository>)]
